@@ -86,8 +86,15 @@ jobs:
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
-          # ds.yml mein naya image tag replace kar rahe hain
+          
+          # Naya image tag update karna
           sed -i "s|image: ${{ secrets.DOCKER_USER }}/bankapp:.*|image: ${{ secrets.DOCKER_USER }}/bankapp:${{ github.run_id }}|g" ds.yml
-          git add ds.yml
-          git commit -m "chore: update image tag to ${{ github.run_id }} [skip ci]"
-          git push
+          
+          # Check karo agar file change hui hai tabhi commit karo
+          if git diff --exit-code ds.yml; then
+            echo "No changes to commit"
+          else
+            git add ds.yml
+            git commit -m "chore: update image tag to ${{ github.run_id }} [skip ci]"
+            git push
+          fi
