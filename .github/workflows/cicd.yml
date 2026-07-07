@@ -27,6 +27,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Resolve Maven Dependencies
+        run: mvn dependency:resolve
+
       - name: Build with Maven
         run: mvn compile
 
@@ -36,20 +39,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # Security scan ko fast aur stable banane ke liye cache use kar rahe hain
-      - name: Cache Trivy DB
+      # Maven cache yahan bhi chahiye taaki Trivy scan ke liye files mil sakein
+      - name: Cache Maven packages
         uses: actions/cache@v4
         with:
-          path: ~/.cache/trivy
-          key: ${{ runner.os }}-trivy-db
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
       - name: Run Trivy FS Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
-          scanners: 'vuln' # Sirf vulnerabilities scan karega, extra requests nahi karega
+          scanners: 'vuln'
           format: 'table'
           output: 'trivy-report.json'
+          # Offline scan aur DB mirror ka use error ko prevent karega
+          args: '--no-progress --severity HIGH,CRITICAL --offline-scan'
+        env:
+          TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
