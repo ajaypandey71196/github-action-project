@@ -22,21 +22,32 @@ This repository contains a simple Spring Boot-based banking web application. The
 - Kubernetes manifest (`ds.yml`) for Deployment and Service
 - JaCoCo for test coverage (configured in `pom.xml`)
 
-## Project Structure
+## Repository Layout
 
-- `pom.xml` — Maven build configuration (dependencies, JaCoCo, distributionManagement)
-- `Dockerfile` — builds a Docker image that runs the packaged jar
-- `ds.yml` — Kubernetes manifest (multi-document) that deploys MySQL and the `bankapp` Deployment + Services
-- `src/main/java/com/example/bankapp/` — application sources
+- `.github/workflows/cicd.yml` — GitHub Actions pipeline for compile, security scan, tests, Docker build/push, and `ds.yml` update
+- `.gitignore` — ignored files
+- `.mvn/` — Maven wrapper support files
+- `Dockerfile` — container image build definition
+- `ds.yml` — Kubernetes manifest for MySQL and the bankapp Deployment/Services
+- `mvnw` / `mvnw.cmd` — Maven wrapper scripts
+- `pom.xml` — Maven build configuration, dependencies, JaCoCo, and distributionManagement
+- `README.md` — project documentation
+- `Setup-RBAC.md` — Kubernetes RBAC sample for service account and role binding
+- `sonar-project.properties` — SonarQube project settings
+- `src/` — application source code and resources
+
+### Source code structure
+
+- `src/main/java/com/example/bankapp/`
   - `BankappApplication.java` — Spring Boot entry point
   - `config/SecurityConfig.java` — Spring Security setup
-  - `controller/BankController.java` — web controllers and endpoints
-  - `service/AccountService.java` — business logic and `UserDetailsService` implementation
-  - `model/Account.java`, `Transaction.java` — JPA entities
-  - `repository/AccountRepository.java`, `TransactionRepository.java` — Spring Data repositories
+  - `controller/BankController.java` — web controller endpoints and request handling
+  - `service/AccountService.java` — business logic, user details service, deposit/withdraw/transfer
+  - `model/Account.java`, `Transaction.java` — JPA entity mappings and security model
+  - `repository/AccountRepository.java`, `TransactionRepository.java` — Spring Data JPA interfaces
 - `src/main/resources/templates/` — Thymeleaf HTML templates (`dashboard.html`, `login.html`, `register.html`, `transactions.html`)
-- `src/main/resources/application.properties` — default app configuration (datasource, JPA)
-- `src/main/resources/static/mysql/SQLScript.txt` — SQL to create the database
+- `src/main/resources/application.properties` — application configuration (datasource, JPA)
+- `src/main/resources/static/mysql/SQLScript.txt` — database creation SQL script
 
 ## How the application works (end-to-end)
 
@@ -114,13 +125,37 @@ Important: `ds.yml` currently contains plaintext DB password and does not use PV
 
 ## CI/CD and DevOps notes
 
-- The repo contains references for common CI/CD and quality tools but no workflow files under `.github/workflows/` yet.
-- `pom.xml` contains JaCoCo plugin configuration and `distributionManagement` entries for publishing to a Maven repository (Nexus/Artifactory).
-- Typical CI pipeline to add:
-  1. `mvn -B -DskipTests=false clean verify` — run compile and tests
-  2. Run JaCoCo coverage report and send to SonarQube
-  3. Build Docker image and push to registry (Docker Hub or internal registry)
-  4. Deploy to Kubernetes (e.g. via `kubectl` or Helm) or trigger a CD tool (ArgoCD/Flux)
+- This repo includes a GitHub Actions workflow in `.github/workflows/cicd.yml`.
+- The pipeline triggers on pushes to the `main` branch and includes four linked jobs:
+  1. `compile` — checks out the repository, installs JDK 17, and runs `mvn compile`.
+  2. `security-check` — performs a Trivy filesystem scan and Gitleaks secret detection.
+  3. `test` — runs unit tests with `mvn test`.
+  4. `build-package-and-push` — builds the project, logs into Docker Hub, builds and pushes a Docker image, tags it as `latest`, and updates `ds.yml` with the new image tag.
+- `build-package-and-push` uses GitHub secrets `DOCKER_USER` and `DOCKER_PASSWORD` for Docker Hub login.
+- The workflow also uses `permissions: contents: write` so it can commit and push changes to `ds.yml` after updating the image tag.
+- `pom.xml` additionally includes JaCoCo configuration and `distributionManagement` entries for Nexus-style artifact publishing.
+- The current CI pipeline is functional and can be extended with SonarQube scanning, artifact publishing, and deployment automation.
+
+### How the CICD workflow runs
+
+1. Push code to `main`.
+2. GitHub Actions starts the `compile` job:
+   - checkout source
+   - set up JDK 17
+   - run `mvn compile`
+3. If compile passes, `security-check` runs:
+   - Trivy filesystem scan
+   - Gitleaks secret scan
+4. If security checks pass, `test` runs:
+   - checkout source
+   - set up JDK 17
+   - run `mvn test`
+5. If tests pass, `build-package-and-push` runs:
+   - build jar with `mvn package`
+   - login to Docker Hub with GitHub secrets
+   - build image `DOCKER_USER/bankapp:${{ github.run_id }}`
+   - push the image and `latest` tag
+   - update `ds.yml` to use the new image tag and commit it back to the repo
 
 ## Security and production-readiness checklist
 
