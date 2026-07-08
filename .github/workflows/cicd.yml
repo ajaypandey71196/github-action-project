@@ -102,7 +102,7 @@ jobs:
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
-          git clone https://x-access-token:${TOKEN}@github.com/ajaypandey71196/bankapp-gitops.git
+          git clone https://x-access-token:${TOKEN}@github.com/ajaypandey71196/github-action-bankapp-gitops.git
           cd bankapp-gitops
           sed -i "s|image: .*/bankapp:.*|image: ${{ secrets.DOCKER_USER }}/bankapp:${{ github.run_id }}|g" ds.yml
           git add ds.yml
